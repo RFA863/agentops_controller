@@ -64,14 +64,14 @@ class AuthService {
   async refreshToken(dataToken, refreshToken) {
     try {
 
-      const decoded = jwt.verify(refreshToken, this.Server.env.JWT_REFRESH_TOKEN_SECRET);
+      const decoded = jwt.verify(refreshToken, this.server.env.JWT_REFRESH_TOKEN_SECRET);
 
       if (decoded.userid !== dataToken.userid) return -1;
 
       return this.generateToken(dataToken.userid);
 
     } catch (error) {
-      console.log(error);
+      this.server.logs("RefresToken Error : " + error)
       return -2;
     }
   }
