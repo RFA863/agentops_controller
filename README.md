@@ -68,8 +68,8 @@ The database is designed to handle relationships between Users, Workflows, Steps
     PORT=...
     HOST=...
     
-   # Database Connection (PostgreSQL)
-   # Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+    # Database Connection (PostgreSQL)
+    # Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
     
     DATABASE_URL="postgresql://postgres:password@localhost:5432/agentops_db?schema=public"
 
