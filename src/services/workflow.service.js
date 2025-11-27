@@ -7,13 +7,16 @@ class WorkflowService {
     this.ai = new AiHelper();
   }
 
-
+  // 1. Create Workflow beserta Steps-nya
   async create(userId, data) {
-    // data.steps diharapkan array of agentId: [1, 4, 2]
-    const { name, description, steps } = data;
+    // data.agents diharapkan array of objects: 
+    // [{ name: "Writer", model: "gemini..", prompt: "...", temperature: 0.7 }, ...]
+    const { name, description, agents } = data;
 
+    // Gunakan Transaction agar jika satu gagal, semua batal
     return await this.prisma.$transaction(async (tx) => {
-      // Buat Header Workflow
+
+      // 1. Buat Header Workflow
       const workflow = await tx.Workflows.create({
         data: {
           name,
@@ -22,15 +25,30 @@ class WorkflowService {
         }
       });
 
-      // Buat Steps (Looping agentIds)
-      if (steps && steps.length > 0) {
-        const stepData = steps.map((agentId, index) => ({
-          workflow_id: workflow.id,
-          agent_id: agentId,
-          step_order: index + 1
-        }));
+      // 2. Loop configurations agent dari User
+      if (agents && agents.length > 0) {
+        for (let i = 0; i < agents.length; i++) {
+          const agentConfig = agents[i];
 
-        await tx.Workflows_Steps.createMany({ data: stepData });
+          // A. Buat Agent Baru di Database
+          const newAgent = await tx.Agents.create({
+            data: {
+              name: agentConfig.name,
+              model: agentConfig.model,
+              prompt: agentConfig.prompt,
+              Temperature: agentConfig.temperature
+            }
+          });
+
+          // B. Hubungkan Agent baru tersebut ke Workflow sebagai Step
+          await tx.Workflows_Steps.create({
+            data: {
+              workflow_id: workflow.id,
+              agent_id: newAgent.id,
+              step_order: i + 1 // Urutan otomatis: 1, 2, 3...
+            }
+          });
+        }
       }
 
       return workflow;

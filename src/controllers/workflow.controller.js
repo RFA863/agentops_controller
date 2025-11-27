@@ -20,7 +20,7 @@ class WorkflowController {
 
   async execute(req, res) {
     try {
-      const { id } = req.params; // Workflow ID
+      const id = req.params.id; // Workflow ID
       const { input } = req.body; // User Input awal
 
       // Jalankan eksekusi (bisa dibuat async/background job kalau mau response cepat)
