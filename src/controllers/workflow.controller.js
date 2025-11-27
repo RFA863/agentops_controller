@@ -12,7 +12,7 @@ class WorkflowController {
     this.workflowService = new WorkflowService(this.server);
   }
 
-  // Create Workflow Header
+
   async create(req, res) {
     try {
       const schemaValidate = this.ajv.compile(this.WorkflowValidator.create);
@@ -32,7 +32,7 @@ class WorkflowController {
     }
   }
 
-  // Add Step (Agent) to Workflow
+
   async addStep(req, res) {
     try {
       const schemaValidate = this.ajv.compile(this.WorkflowValidator.addStep);
@@ -58,7 +58,7 @@ class WorkflowController {
     }
   }
 
-  // Execute
+
   async execute(req, res) {
     try {
       const id = req.params.id;
@@ -81,7 +81,17 @@ class WorkflowController {
     }
   }
 
-  // History
+  async getAll(req, res) {
+    try {
+      const userId = req.middlewares.authorization.userid;
+      const result = await this.workflowService.getAll(userId);
+
+      return res.status(200).json(this.responsePreset.resOK("Success", result));
+    } catch (err) {
+      return res.status(500).json(this.responsePreset.resErr(500, err.message, "server", err));
+    }
+  }
+
   async getHistory(req, res) {
     try {
       const result = await this.workflowService.getHistory(req.params.id);
@@ -93,6 +103,26 @@ class WorkflowController {
       }
 
       return res.status(200).json(this.responsePreset.resOK("History Data", result));
+    } catch (err) {
+      return res.status(500).json(this.responsePreset.resErr(500, err.message, "server", err));
+    }
+  }
+
+  async update(req, res) {
+    try {
+      const id = req.params.id;
+      const result = await this.workflowService.update(id, req.body);
+      return res.status(200).json(this.responsePreset.resOK("Workflow Updated", result));
+    } catch (err) {
+      return res.status(500).json(this.responsePreset.resErr(500, err.message, "server", err));
+    }
+  }
+
+  async delete(req, res) {
+    try {
+      const id = req.params.id;
+      await this.workflowService.delete(id);
+      return res.status(200).json(this.responsePreset.resOK("Workflow and Agents Deleted"));
     } catch (err) {
       return res.status(500).json(this.responsePreset.resErr(500, err.message, "server", err));
     }

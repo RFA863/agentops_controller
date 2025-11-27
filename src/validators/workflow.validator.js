@@ -1,5 +1,5 @@
 class WorkflowValidator {
-  // Validasi saat membuat Workflow (Hanya Nama & Deskripsi)
+
   create = {
     type: "object",
     properties: {
@@ -16,11 +16,10 @@ class WorkflowValidator {
     additionalProperties: false
   };
 
-  // Validasi saat menambahkan Step (Data Agent)
   addStep = {
     type: "object",
     properties: {
-      name: { // Nama Agent
+      name: {
         type: "string",
         maxLength: 100,
         minLength: 3,
@@ -37,7 +36,7 @@ class WorkflowValidator {
       temperature: {
         type: "number",
         minimum: 0.0,
-        maximum: 2.0,
+        maximum: 1.0,
       }
     },
     required: ["name", "model", "prompt", "temperature"],

@@ -40,7 +40,7 @@ class AgentService {
   async update(id, data) {
     const getAgentById = await this.model.Agents.findUnique({
       where: {
-        id: id
+        id: parseInt(id)
       }
     });
 
@@ -48,7 +48,7 @@ class AgentService {
 
     const updateAgent = await this.model.Agents.update({
       where: {
-        id: id
+        id: parseInt(id)
       },
       data: {
         name: data.name,

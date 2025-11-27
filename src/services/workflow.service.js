@@ -3,11 +3,11 @@ import AiHelper from "../helpers/ai.helper.js";
 class WorkflowService {
   constructor(server) {
     this.server = server;
-    this.model = this.server.model.db; // Style disamakan: this.model
+    this.model = this.server.model.db;
     this.ai = new AiHelper();
   }
 
-  // 1. Create Workflow Header Only
+
   async create(userId, data) {
     const createWorkflow = await this.model.Workflows.create({
       data: {
@@ -20,16 +20,15 @@ class WorkflowService {
     return createWorkflow;
   }
 
-  // 2. Add Step (Create Agent & Link to Workflow)
+
   async addStep(workflowId, agentData) {
-    // Cek apakah workflow ada
+
     const workflow = await this.model.Workflows.findUnique({
       where: { id: parseInt(workflowId) }
     });
 
     if (!workflow) return -1;
 
-    // Hitung urutan step (step_order)
     const lastStep = await this.model.Workflows_Steps.findFirst({
       where: { workflow_id: parseInt(workflowId) },
       orderBy: { step_order: 'desc' }
@@ -37,9 +36,9 @@ class WorkflowService {
 
     const nextOrder = lastStep ? lastStep.step_order + 1 : 1;
 
-    // Transaction: Buat Agent -> Buat Step
+
     return await this.model.$transaction(async (tx) => {
-      // A. Buat Agent
+
       const newAgent = await tx.Agents.create({
         data: {
           name: agentData.name,
@@ -49,7 +48,7 @@ class WorkflowService {
         }
       });
 
-      // B. Buat Workflow Step
+
       const newStep = await tx.Workflows_Steps.create({
         data: {
           workflow_id: parseInt(workflowId),
@@ -57,7 +56,7 @@ class WorkflowService {
           step_order: nextOrder
         },
         include: {
-          agent: true // Return data agent yang baru dibuat
+          agent: true
         }
       });
 
@@ -65,15 +64,15 @@ class WorkflowService {
     });
   }
 
-  // 3. Execute Workflow
+
   async execute(workflowId, initialInput) {
-    // Validasi Workflow
+
     const workflow = await this.model.Workflows.findUnique({
       where: { id: parseInt(workflowId) }
     });
     if (!workflow) return -1;
 
-    // A. Create Execution Session
+
     const execution = await this.model.Workflow_Executions.create({
       data: {
         workflow_id: parseInt(workflowId),
@@ -81,19 +80,19 @@ class WorkflowService {
       }
     });
 
-    // B. Ambil steps
+
     const steps = await this.model.Workflows_Steps.findMany({
       where: { workflow_id: parseInt(workflowId) },
       orderBy: { step_order: 'asc' },
       include: { agent: true }
     });
 
-    if (steps.length === 0) return -2; // Error: Workflow kosong
+    if (steps.length === 0) return -2;
 
     let currentInput = initialInput;
     let isFailed = false;
 
-    // C. Loop Eksekusi
+
     for (const step of steps) {
       if (isFailed) break;
 
@@ -107,7 +106,7 @@ class WorkflowService {
           }
         });
 
-        // Konversi Decimal ke Number untuk AI Helper
+
         const temp = step.agent.Temperature ? Number(step.agent.Temperature) : 0.7;
 
         const aiResponse = await this.ai.generate(
@@ -155,6 +154,20 @@ class WorkflowService {
     };
   }
 
+  async getAll(userId) {
+    return await this.model.Workflows.findMany({
+      where: { user_id: userId },
+      include: {
+        workflow_step: {
+          orderBy: { step_order: 'asc' },
+          include: { agent: true }
+        }
+      },
+      orderBy: { created_at: 'desc' }
+    });
+  }
+
+
   async getHistory(executionId) {
     const history = await this.model.Workflow_Executions.findUnique({
       where: { id: parseInt(executionId) },
@@ -169,6 +182,47 @@ class WorkflowService {
     if (!history) return -1;
     return history;
   }
+
+  async update(id, data) {
+    return await this.model.Workflows.update({
+      where: { id: parseInt(id) },
+      data: {
+        name: data.name,
+        description: data.description,
+      }
+    });
+  }
+
+
+  async delete(id) {
+    const workflowId = parseInt(id);
+
+
+    const steps = await this.model.Workflows_Steps.findMany({
+      where: { workflow_id: workflowId },
+      select: { agent_id: true }
+    });
+
+    const agentIds = steps.map(s => s.agent_id);
+
+
+    return await this.model.$transaction(async (tx) => {
+
+      const deletedWorkflow = await tx.Workflows.delete({
+        where: { id: workflowId }
+      });
+
+
+      if (agentIds.length > 0) {
+        await tx.Agents.deleteMany({
+          where: { id: { in: agentIds } }
+        });
+      }
+
+      return deletedWorkflow;
+    });
+  }
+
 }
 
 export default WorkflowService;
