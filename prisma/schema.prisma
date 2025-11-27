@@ -64,7 +64,7 @@ model Workflows_Steps {
   workflow_id Int
   agent_id    Int
   created_at  DateTime  @default(now())
-  updated_at  DateTime  @unique
+  updated_at  DateTime  @updatedAt
 
   workflow        Workflows         @relation(fields: [workflow_id], references: [id], onDelete: Cascade)
   agent           Agents            @relation(fields: [agent_id], references: [id], onDelete: Cascade)

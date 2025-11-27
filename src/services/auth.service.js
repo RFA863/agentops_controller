@@ -20,18 +20,18 @@ class AuthService {
     return { token, refreshToken };
   }
 
-  async register() {
-    const findUser = await model.Users.findUnique({
-      where: { username: req.username }
+  async register(data) {
+    const findUser = await this.model.Users.findUnique({
+      where: { username: data.username }
     })
 
     if (findUser) return -1;
 
-    const hashPassword = await bcrypt.hash(req.password, 10);
+    const hashPassword = await bcrypt.hash(data.password, 10);
 
-    const userData = await model.Users.create({
+    const userData = await this.model.Users.create({
       data: {
-        username: req.username,
+        username: data.username,
         password: hashPassword
       }
     });
@@ -41,17 +41,17 @@ class AuthService {
     return userData;
   }
 
-  async login(req) {
+  async login(data) {
 
-    const user = await model.Users.findUnique({
+    const user = await this.model.Users.findUnique({
       where: {
-        username: req.username,
+        username: data.username,
       }
     });
 
     if (!user) return -1;
 
-    const matchPassword = await bcrypt.compare(req.password, user.password);
+    const matchPassword = await bcrypt.compare(data.password, user.password);
 
     if (!matchPassword) return -2;
 
