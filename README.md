@@ -36,7 +36,7 @@ The database is designed to handle relationships between Users, Workflows, Steps
 
 ![Entity Relationship Diagram](./erd.png)
 
-*Make sure to place the `erd.png` file in the root directory.*
+
 
 ## ✅ Prerequisites
 - Node.js (v18 or later)
