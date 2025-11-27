@@ -3,85 +3,102 @@ import AiHelper from "../helpers/ai.helper.js";
 class WorkflowService {
   constructor(server) {
     this.server = server;
-    this.prisma = this.server.model.db;
+    this.model = this.server.model.db; // Style disamakan: this.model
     this.ai = new AiHelper();
   }
 
-  // 1. Create Workflow beserta Steps-nya
+  // 1. Create Workflow Header Only
   async create(userId, data) {
-    // data.agents diharapkan array of objects: 
-    // [{ name: "Writer", model: "gemini..", prompt: "...", temperature: 0.7 }, ...]
-    const { name, description, agents } = data;
+    const createWorkflow = await this.model.Workflows.create({
+      data: {
+        name: data.name,
+        description: data.description,
+        user_id: userId
+      }
+    });
 
-    // Gunakan Transaction agar jika satu gagal, semua batal
-    return await this.prisma.$transaction(async (tx) => {
+    return createWorkflow;
+  }
 
-      // 1. Buat Header Workflow
-      const workflow = await tx.Workflows.create({
+  // 2. Add Step (Create Agent & Link to Workflow)
+  async addStep(workflowId, agentData) {
+    // Cek apakah workflow ada
+    const workflow = await this.model.Workflows.findUnique({
+      where: { id: parseInt(workflowId) }
+    });
+
+    if (!workflow) return -1;
+
+    // Hitung urutan step (step_order)
+    const lastStep = await this.model.Workflows_Steps.findFirst({
+      where: { workflow_id: parseInt(workflowId) },
+      orderBy: { step_order: 'desc' }
+    });
+
+    const nextOrder = lastStep ? lastStep.step_order + 1 : 1;
+
+    // Transaction: Buat Agent -> Buat Step
+    return await this.model.$transaction(async (tx) => {
+      // A. Buat Agent
+      const newAgent = await tx.Agents.create({
         data: {
-          name,
-          description,
-          user_id: userId
+          name: agentData.name,
+          model: agentData.model,
+          prompt: agentData.prompt,
+          Temperature: agentData.temperature
         }
       });
 
-      // 2. Loop configurations agent dari User
-      if (agents && agents.length > 0) {
-        for (let i = 0; i < agents.length; i++) {
-          const agentConfig = agents[i];
-
-          // A. Buat Agent Baru di Database
-          const newAgent = await tx.Agents.create({
-            data: {
-              name: agentConfig.name,
-              model: agentConfig.model,
-              prompt: agentConfig.prompt,
-              Temperature: agentConfig.temperature
-            }
-          });
-
-          // B. Hubungkan Agent baru tersebut ke Workflow sebagai Step
-          await tx.Workflows_Steps.create({
-            data: {
-              workflow_id: workflow.id,
-              agent_id: newAgent.id,
-              step_order: i + 1 // Urutan otomatis: 1, 2, 3...
-            }
-          });
+      // B. Buat Workflow Step
+      const newStep = await tx.Workflows_Steps.create({
+        data: {
+          workflow_id: parseInt(workflowId),
+          agent_id: newAgent.id,
+          step_order: nextOrder
+        },
+        include: {
+          agent: true // Return data agent yang baru dibuat
         }
-      }
+      });
 
-      return workflow;
+      return newStep;
     });
   }
 
-  // 2. ENGINE EKSEKUSI WORKFLOW (Chain Logic)
+  // 3. Execute Workflow
   async execute(workflowId, initialInput) {
-    // A. Create Execution Session (Status: Running)
-    const execution = await this.prisma.Workflow_Executions.create({
+    // Validasi Workflow
+    const workflow = await this.model.Workflows.findUnique({
+      where: { id: parseInt(workflowId) }
+    });
+    if (!workflow) return -1;
+
+    // A. Create Execution Session
+    const execution = await this.model.Workflow_Executions.create({
       data: {
         workflow_id: parseInt(workflowId),
         status: "Running"
       }
     });
 
-    // B. Ambil semua steps urut berdasarkan step_order
-    const steps = await this.prisma.Workflows_Steps.findMany({
+    // B. Ambil steps
+    const steps = await this.model.Workflows_Steps.findMany({
       where: { workflow_id: parseInt(workflowId) },
       orderBy: { step_order: 'asc' },
-      include: { agent: true } // Join ke tabel Agent untuk ambil prompt
+      include: { agent: true }
     });
+
+    if (steps.length === 0) return -2; // Error: Workflow kosong
 
     let currentInput = initialInput;
     let isFailed = false;
 
-    // C. Loop Eksekusi (Chain)
+    // C. Loop Eksekusi
     for (const step of steps) {
       if (isFailed) break;
 
       try {
-        // Catat Log Awal (Pending/Running)
-        const log = await this.prisma.Execution_Logs.create({
+        const log = await this.model.Execution_Logs.create({
           data: {
             execution_id: execution.id,
             step_id: step.id,
@@ -90,16 +107,19 @@ class WorkflowService {
           }
         });
 
-        // Panggil AI
+        // Konversi Decimal ke Number untuk AI Helper
+        const temp = step.agent.Temperature ? Number(step.agent.Temperature) : 0.7;
+
         const aiResponse = await this.ai.generate(
           step.agent.model,
           step.agent.prompt,
           currentInput,
-          Number(step.agent.Temperature)
+          temp
         );
 
-        // Update Log Sukses
-        await this.prisma.Execution_Logs.update({
+        if (aiResponse === -1) throw new Error("AI Service Error");
+
+        await this.model.Execution_Logs.update({
           where: { id: log.id },
           data: {
             status: "Completed",
@@ -107,39 +127,36 @@ class WorkflowService {
           }
         });
 
-        // Output jadi Input step selanjutnya
         currentInput = aiResponse;
 
       } catch (error) {
         isFailed = true;
-        // Update Log Gagal
-        await this.prisma.Execution_Logs.create({
+        await this.model.Execution_Logs.create({
           data: {
             execution_id: execution.id,
             step_id: step.id,
             status: "Failed",
             input_data: currentInput,
-            error_message: error.message
+            error_message: error.message || "Unknown Error"
           }
         });
       }
     }
 
-    // D. Update Status Akhir Eksekusi
-    await this.prisma.Workflow_Executions.update({
+    await this.model.Workflow_Executions.update({
       where: { id: execution.id },
-      data: {
-        status: isFailed ? "Failed" : "Completed"
-      }
+      data: { status: isFailed ? "Failed" : "Completed" }
     });
 
-    // Kembalikan hasil akhir dan ID eksekusi
-    return { executionId: execution.id, finalOutput: currentInput, status: isFailed ? "Failed" : "Completed" };
+    return {
+      executionId: execution.id,
+      finalOutput: isFailed ? null : currentInput,
+      status: isFailed ? "Failed" : "Completed"
+    };
   }
 
-  // Fungsi History: Melihat Log Eksekusi
   async getHistory(executionId) {
-    return await this.prisma.Workflow_Executions.findUnique({
+    const history = await this.model.Workflow_Executions.findUnique({
       where: { id: parseInt(executionId) },
       include: {
         execution_log: {
@@ -148,6 +165,9 @@ class WorkflowService {
         }
       }
     });
+
+    if (!history) return -1;
+    return history;
   }
 }
 
