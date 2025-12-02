@@ -27,7 +27,6 @@ class HandlerModel {
       }
 
       this.db = global.prisma;
-      // await this.db.$queryRaw`SELECT 1`;
 
       this.server.logs('Database Connected');
 
