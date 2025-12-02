@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node .",
-    "dev": "nodemon ."
+    "dev": "nodemon .",
+    "postinstall": "prisma generate && prisma migrate deploy" 
+    
   },
   "author": "Rafi Fajrul Ariyadi",
   "license": "ISC",
