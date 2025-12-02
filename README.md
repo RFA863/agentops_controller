@@ -36,7 +36,7 @@ The database is designed to handle relationships between Users, Workflows, Steps
 
 ![Entity Relationship Diagram](./erd.png)
 
-*Make sure to place the `erd.png` file in the root directory.*
+
 
 ## ✅ Prerequisites
 - Node.js (v18 or later)
@@ -68,8 +68,8 @@ The database is designed to handle relationships between Users, Workflows, Steps
     PORT=...
     HOST=...
     
-   # Database Connection (PostgreSQL)
-   # Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
+    # Database Connection (PostgreSQL)
+    # Format: postgresql://USER:PASSWORD@HOST:PORT/DATABASE?schema=public
     
     DATABASE_URL="postgresql://postgres:password@localhost:5432/agentops_db?schema=public"
 
